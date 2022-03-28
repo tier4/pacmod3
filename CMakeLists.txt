@@ -60,7 +60,7 @@ target_link_libraries(
 )
 
 ament_export_include_directories(include)
-ament_export_interfaces(export_${PROJECT_NAME}_node HAS_LIBRARY_TARGET)
+ament_export_targets(export_${PROJECT_NAME}_node HAS_LIBRARY_TARGET)
 ament_export_libraries(${PROJECT_NAME}_node)
 
 if(BUILD_TESTING)
