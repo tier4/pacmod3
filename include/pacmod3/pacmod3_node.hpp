@@ -114,6 +114,7 @@ private:
   void callback_sprayer_cmd(const pacmod3_msgs::msg::SystemCmdBool::SharedPtr msg);
   void callback_steering_cmd(const pacmod3_msgs::msg::SteeringCmd::SharedPtr msg);
   void callback_turn_cmd(const pacmod3_msgs::msg::SystemCmdInt::SharedPtr msg);
+  void callback_turn_rpt(const pacmod3_msgs::msg::SystemRptInt::SharedPtr msg);
   void callback_wiper_cmd(const pacmod3_msgs::msg::SystemCmdInt::SharedPtr msg);
 
   template<class T>
@@ -156,6 +157,12 @@ private:
     std::shared_ptr<LockedData>>> can_subs_;
 
   std::shared_ptr<std::thread> pub_thread_;
+
+  // Turn signal driver override tracking
+  std::shared_ptr<rclcpp::Subscription<pacmod3_msgs::msg::SystemRptInt>> sub_turn_rpt_;
+  uint16_t driver_turn_signal_input_;
+  std::mutex turn_signal_mutex_;
+  pacmod3_msgs::msg::SystemCmdInt::SharedPtr pending_turn_cmd_;
 };
 
 }  // namespace pacmod3
