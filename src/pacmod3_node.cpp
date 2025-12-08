@@ -713,7 +713,6 @@ void PACMod3Node::callback_turn_rpt(const pacmod3_msgs::msg::SystemRptInt::Share
   // apply the autonomous command
   if (driver_turn_signal_input_ == pacmod3_msgs::msg::SystemCmdInt::TURN_NONE && pending_turn_cmd_)
   {
-    RCLCPP_INFO(this->get_logger(), "Driver released turn signal, resuming autonomous control");
     lookup_and_encode(TurnSignalCmdMsg::CAN_ID, pending_turn_cmd_);
     pending_turn_cmd_.reset();
   }
@@ -728,10 +727,6 @@ void PACMod3Node::callback_turn_cmd(const pacmod3_msgs::msg::SystemCmdInt::Share
   {
     // Driver is operating turn signal, store the autonomous command for later
     // and override with driver's input
-    RCLCPP_INFO(
-      this->get_logger(),
-      "Driver is operating turn signal (manual_input: %d), overriding autonomous command (cmd: %d)",
-      driver_turn_signal_input_, msg->command);
     pending_turn_cmd_ = msg;
 
     // Create a command message with driver's input
