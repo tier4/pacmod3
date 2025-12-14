@@ -144,6 +144,14 @@ LNI::CallbackReturn PACMod3Node::on_configure(const lc::State & state)
   turn_encoder.encode(false, false, false, false, pacmod3_msgs::msg::SystemCmdInt::TURN_NONE);
   can_subs_[TurnSignalCmdMsg::CAN_ID].second->setData(std::move(turn_encoder.data));
 
+  // Subscribe to turn_rpt to monitor driver's manual input
+  sub_turn_rpt_ = this->create_subscription<pacmod3_msgs::msg::SystemRptInt>(
+    "turn_rpt", 20,
+    std::bind(&PACMod3Node::callback_turn_rpt, this, std::placeholders::_1));
+
+  // Initialize driver turn signal tracking
+  driver_turn_signal_input_ = pacmod3_msgs::msg::SystemCmdInt::TURN_NONE;
+
   pub_thread_ = std::make_shared<std::thread>();
 
   system_statuses_timer_ = this->create_wall_timer(
@@ -696,9 +704,46 @@ void PACMod3Node::callback_steering_cmd(const pacmod3_msgs::msg::SteeringCmd::Sh
   lookup_and_encode(SteeringCmdMsg::CAN_ID, msg);
 }
 
+void PACMod3Node::callback_turn_rpt(const pacmod3_msgs::msg::SystemRptInt::SharedPtr msg)
+{
+  std::lock_guard<std::mutex> lock(turn_signal_mutex_);
+  driver_turn_signal_input_ = msg->manual_input;
+
+  // If driver has released the turn signal (returned to NONE) and there's a pending command,
+  // apply the autonomous command
+  if (driver_turn_signal_input_ == pacmod3_msgs::msg::SystemCmdInt::TURN_NONE && pending_turn_cmd_)
+  {
+    lookup_and_encode(TurnSignalCmdMsg::CAN_ID, pending_turn_cmd_);
+    pending_turn_cmd_.reset();
+  }
+}
+
 void PACMod3Node::callback_turn_cmd(const pacmod3_msgs::msg::SystemCmdInt::SharedPtr msg)
 {
-  lookup_and_encode(TurnSignalCmdMsg::CAN_ID, msg);
+  std::lock_guard<std::mutex> lock(turn_signal_mutex_);
+
+  // Check if driver is currently operating the turn signal
+  if (driver_turn_signal_input_ != pacmod3_msgs::msg::SystemCmdInt::TURN_NONE)
+  {
+    // Driver is operating turn signal, store the autonomous command for later
+    // and override with driver's input
+    pending_turn_cmd_ = msg;
+
+    // Create a command message with driver's input
+    auto driver_cmd = std::make_shared<pacmod3_msgs::msg::SystemCmdInt>();
+    driver_cmd->enable = msg->enable;
+    driver_cmd->ignore_overrides = msg->ignore_overrides;
+    driver_cmd->clear_override = msg->clear_override;
+    driver_cmd->command = driver_turn_signal_input_;
+
+    lookup_and_encode(TurnSignalCmdMsg::CAN_ID, driver_cmd);
+  }
+  else
+  {
+    // No driver override, use autonomous command
+    pending_turn_cmd_.reset();
+    lookup_and_encode(TurnSignalCmdMsg::CAN_ID, msg);
+  }
 }
 
 void PACMod3Node::callback_wiper_cmd(const pacmod3_msgs::msg::SystemCmdInt::SharedPtr msg)
